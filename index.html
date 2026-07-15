@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The Filing Desk — Your Files, Finally Organized</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="A desktop file organizer that sorts, tags, and moves your files into place. Local-first. Private. Built with Tauri.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,300;1,9..144,400;1,9..144,500;1,9..144,700&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F2EAD8;
+    --paper-deep: #E8DCC0;
+    --paper-cream: #FAF6ED;
+    --manila: #E4BE7F;
+    --manila-dark: #C99A5A;
+    --ink: #20291F;
+    --ink-soft: #4B5245;
+    --ink-faint: #8A9180;
+    --rust: #BD4B28;
+    --rust-light: #D4693F;
+    --forest: #33533D;
+    --forest-light: #4A7A5C;
+    --line: #c9b98d;
+    --card: #FBF6E9;
+    --shadow: 3px 4px 0 rgba(32,41,31,0.18);
+    --shadow-lg: 6px 8px 0 rgba(32,41,31,0.12);
+    --shadow-hover: 5px 6px 0 rgba(32,41,31,0.2);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 400;
+    line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Noise texture overlay */
+  body::before {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Grid lines background */
+  body::after {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    opacity: 0.02;
+    background-image:
+      repeating-linear-gradient(90deg, var(--ink) 0px, var(--ink) 1px, transparent 1px, transparent 80px),
+      repeating-linear-gradient(0deg, var(--ink) 0px, var(--ink) 1px, transparent 1px, transparent 80px);
+  }
+
+  .wrap { position: relative; z-index: 1; }
+
+  /* ===== NAV ===== */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding: 20px 40px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(242,234,216,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1.5px solid rgba(32,41,31,0.08);
+    transition: all 0.3s ease;
+  }
+  nav.scrolled {
+    padding: 14px 40px;
+    box-shadow: 0 2px 20px rgba(32,41,31,0.06);
+  }
+  .nav-brand {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+    color: var(--ink);
+  }
+  .nav-brand em { font-style: italic; color: var(--rust); font-weight: 500; }
+  .nav-links { display: flex; align-items: center; gap: 32px; }
+  .nav-links a {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: var(--ink-soft);
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--rust); }
+  .nav-cta {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px; font-weight: 500;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    text-decoration: none;
+    background: var(--ink); color: var(--paper);
+    padding: 10px 20px;
+    border: 2px solid var(--ink);
+    transition: all 0.2s ease;
+  }
+  .nav-cta:hover {
+    background: var(--rust); border-color: var(--rust);
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 rgba(189,75,40,0.3);
+  }
+  .nav-cta svg { width: 14px; height: 14px; fill: currentColor; }
+
+  /* ===== HERO ===== */
+  .hero {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    padding: 140px 60px 80px;
+    max-width: 1400px;
+    margin: 0 auto;
+    align-items: center;
+  }
+  .hero-text { position: relative; }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--forest);
+    margin-bottom: 28px;
+    padding: 6px 14px;
+    border: 1.5px solid var(--forest);
+    background: rgba(51,83,61,0.06);
+  }
+  .hero-badge::before {
+    content: "";
+    width: 6px; height: 6px;
+    background: var(--forest);
+    border-radius: 50%;
+    animation: pulse 2s ease infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.4); }
+  }
+  .hero h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 800;
+    font-size: clamp(48px, 6vw, 82px);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    margin-bottom: 28px;
+  }
+  .hero h1 .line { display: block; }
+  .hero h1 .accent {
+    font-style: italic;
+    font-weight: 300;
+    color: var(--rust);
+    position: relative;
+  }
+  .hero h1 .accent::after {
+    content: "";
+    position: absolute; bottom: 4px; left: 0; right: 0;
+    height: 3px;
+    background: var(--rust);
+    opacity: 0.3;
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: underline-draw 0.8s 1.2s ease forwards;
+  }
+  @keyframes underline-draw {
+    to { transform: scaleX(1); }
+  }
+  .hero-desc {
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink-soft);
+    max-width: 460px;
+    margin-bottom: 36px;
+  }
+  .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px; font-weight: 500;
+    letter-spacing: 0.03em;
+    text-decoration: none;
+    background: var(--ink); color: var(--paper);
+    padding: 14px 28px;
+    border: 2px solid var(--ink);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow);
+  }
+  .btn-primary:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-hover);
+    background: var(--rust); border-color: var(--rust);
+  }
+  .btn-primary:active {
+    transform: translate(0, 0);
+    box-shadow: 1px 1px 0 rgba(32,41,31,0.18);
+  }
+  .btn-secondary {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px; font-weight: 500;
+    letter-spacing: 0.03em;
+    text-decoration: none;
+    background: transparent; color: var(--ink);
+    padding: 14px 28px;
+    border: 2px solid var(--ink);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-secondary:hover {
+    background: var(--ink); color: var(--paper);
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 rgba(32,41,31,0.15);
+  }
+  .btn-secondary svg { width: 16px; height: 16px; fill: currentColor; }
+
+  /* Hero visual — desk mockup */
+  .hero-visual {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .desk-frame {
+    position: relative;
+    width: 100%;
+    max-width: 540px;
+    aspect-ratio: 4/3;
+    background: var(--card);
+    border: 2px solid var(--ink);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    transform: rotate(-1.5deg);
+    transition: transform 0.4s ease;
+  }
+  .desk-frame:hover { transform: rotate(0deg); }
+  .desk-frame::before {
+    content: "THE FILING DESK";
+    position: absolute; top: 0; left: 0; right: 0;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 8px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .desk-frame::before {
+    content: "";
+  }
+  .desk-titlebar {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 10px 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .desk-titlebar .dots { display: flex; gap: 5px; }
+  .desk-titlebar .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(242,234,216,0.4);
+  }
+  .desk-titlebar .dot:nth-child(1) { background: var(--rust); border-color: var(--rust); }
+  .desk-titlebar .dot:nth-child(2) { background: var(--manila); border-color: var(--manila); }
+  .desk-titlebar .dot:nth-child(3) { background: var(--forest); border-color: var(--forest); }
+  .desk-titlebar span:last-child { margin-left: auto; opacity: 0.5; }
+
+  .desk-content {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: calc(100% - 38px);
+  }
+  .desk-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    font-size: 12px;
+    animation: desk-slide 0.5s ease both;
+  }
+  .desk-row:nth-child(1) { animation-delay: 0.3s; }
+  .desk-row:nth-child(2) { animation-delay: 0.45s; }
+  .desk-row:nth-child(3) { animation-delay: 0.6s; }
+  .desk-row:nth-child(4) { animation-delay: 0.75s; }
+  .desk-row:nth-child(5) { animation-delay: 0.9s; }
+  .desk-row:nth-child(6) { animation-delay: 1.05s; }
+  .desk-row:nth-child(7) { animation-delay: 1.2s; }
+  .desk-row:nth-child(8) { animation-delay: 1.35s; }
+  @keyframes desk-slide {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .desk-row .icon {
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  .desk-row .name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 500;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .desk-row .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--manila);
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .desk-row .tag.finance { background: #D4E8DC; color: var(--forest); }
+  .desk-row .tag.legal { background: #F4DCC7; color: var(--rust); }
+  .desk-row .tag.hr { background: #DCE4F4; color: #3D5A80; }
+
+  /* Decorative desk elements */
+  .desk-sticky {
+    position: absolute;
+    background: #FFF9C4;
+    padding: 12px 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    line-height: 1.5;
+    box-shadow: 2px 3px 8px rgba(0,0,0,0.1);
+    transform: rotate(3deg);
+    z-index: 2;
+    max-width: 130px;
+  }
+  .desk-sticky.tl { top: 60px; right: -20px; transform: rotate(4deg); }
+  .desk-sticky.br { bottom: 20px; left: -15px; transform: rotate(-2deg); background: #FFCCBC; }
+
+  /* ===== FEATURES ===== */
+  .features {
+    padding: 120px 60px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+  .features-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: clamp(36px, 4vw, 54px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 60px;
+    max-width: 700px;
+  }
+  .features-title em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--rust);
+  }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .feature-card {
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    padding: 36px 30px;
+    position: relative;
+    transition: all 0.3s ease;
+    overflow: hidden;
+  }
+  .feature-card::before {
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--ink);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease;
+  }
+  .feature-card:hover::before { transform: scaleX(1); }
+  .feature-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow);
+    border-color: var(--ink);
+  }
+  .feature-card .num {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: 48px;
+    color: var(--line);
+    line-height: 1;
+    margin-bottom: 16px;
+  }
+  .feature-card h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 20px;
+    margin-bottom: 10px;
+    letter-spacing: -0.01em;
+  }
+  .feature-card p {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+  }
+  .feature-card .icon-badge {
+    display: inline-flex;
+    width: 40px; height: 40px;
+    align-items: center; justify-content: center;
+    font-size: 18px;
+    background: var(--paper);
+    border: 1.5px solid var(--line);
+    margin-bottom: 16px;
+  }
+
+  /* ===== HOW IT WORKS ===== */
+  .how {
+    padding: 120px 60px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .how-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    margin-top: 60px;
+    counter-reset: step;
+  }
+  .how-step {
+    counter-increment: step;
+    padding: 40px 36px;
+    border: 1.5px solid var(--line);
+    border-right: none;
+    position: relative;
+    transition: all 0.3s ease;
+  }
+  .how-step:last-child { border-right: 1.5px solid var(--line); }
+  .how-step:hover {
+    background: var(--card);
+    z-index: 1;
+  }
+  .how-step::before {
+    content: counter(step, decimal-leading-zero);
+    font-family: 'Fraunces', serif;
+    font-weight: 800;
+    font-size: 64px;
+    color: var(--paper-deep);
+    line-height: 1;
+    margin-bottom: 20px;
+    display: block;
+    transition: color 0.3s;
+  }
+  .how-step:hover::before { color: var(--manila); }
+  .how-step h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 22px;
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  .how-step p {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--ink-soft);
+  }
+  .how-step .step-icon {
+    font-size: 28px;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  /* ===== PRIVACY BANNER ===== */
+  .privacy {
+    margin: 0 60px;
+    max-width: 1280px;
+    margin-left: auto; margin-right: auto;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 60px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 40px;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .privacy::before {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(242,234,216,0.03) 20px, rgba(242,234,216,0.03) 21px);
+  }
+  .privacy-content { position: relative; z-index: 1; }
+  .privacy h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: clamp(28px, 3vw, 40px);
+    line-height: 1.1;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+  }
+  .privacy h2 em { font-style: italic; font-weight: 400; color: var(--manila); }
+  .privacy p {
+    font-size: 15px;
+    line-height: 1.7;
+    opacity: 0.8;
+    max-width: 520px;
+  }
+  .privacy-visual {
+    position: relative; z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .shield {
+    width: 80px; height: 80px;
+    border: 2px solid var(--manila);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    position: relative;
+  }
+  .shield::after {
+    content: "";
+    position: absolute; inset: -8px;
+    border: 1px solid rgba(228,190,127,0.3);
+  }
+  .privacy-stat {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+
+  /* ===== GITHUB / DOWNLOAD ===== */
+  .download {
+    padding: 120px 60px;
+    max-width: 1400px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .download-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: clamp(36px, 4vw, 56px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+  }
+  .download-title em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--rust);
+  }
+  .download-sub {
+    font-size: 16px;
+    color: var(--ink-soft);
+    max-width: 500px;
+    margin: 0 auto 48px;
+    line-height: 1.7;
+  }
+  .download-actions {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 48px;
+  }
+  .download-actions .btn-primary,
+  .download-actions .btn-secondary {
+    padding: 16px 32px;
+    font-size: 14px;
+  }
+  .github-btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px; font-weight: 500;
+    text-decoration: none;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 16px 32px;
+    border: 2px solid var(--ink);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow);
+  }
+  .github-btn:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-hover);
+    background: #1a1a2e;
+    border-color: #1a1a2e;
+  }
+  .github-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+  .download-meta {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-faint);
+  }
+  .download-meta span { display: flex; align-items: center; gap: 6px; }
+  .download-meta .dot {
+    width: 5px; height: 5px;
+    background: var(--forest);
+    border-radius: 50%;
+  }
+
+  /* ===== FOOTER ===== */
+  footer {
+    border-top: 2px solid var(--ink);
+    padding: 40px 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .footer-brand {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 16px;
+  }
+  .footer-brand em { font-style: italic; color: var(--rust); }
+  .footer-links {
+    display: flex;
+    gap: 24px;
+  }
+  .footer-links a {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: var(--ink-faint);
+    transition: color 0.2s;
+  }
+  .footer-links a:hover { color: var(--rust); }
+  .footer-copy {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-faint);
+  }
+
+  /* ===== ANIMATIONS ===== */
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 1024px) {
+    .hero {
+      grid-template-columns: 1fr;
+      padding: 120px 40px 60px;
+      gap: 40px;
+    }
+    .hero-visual { order: -1; }
+    .desk-frame { max-width: 440px; margin: 0 auto; }
+    .feature-grid { grid-template-columns: 1fr 1fr; }
+    .how-steps { grid-template-columns: 1fr; }
+    .how-step { border-right: 1.5px solid var(--line); border-bottom: none; }
+    .how-step:last-child { border-bottom: 1.5px solid var(--line); }
+    .privacy { grid-template-columns: 1fr; margin: 0 40px; padding: 40px; }
+    .privacy-visual { display: none; }
+    nav { padding: 16px 24px; }
+    .features, .how, .download { padding-left: 40px; padding-right: 40px; }
+    footer { padding: 32px 40px; flex-wrap: wrap; gap: 16px; }
+  }
+  @media (max-width: 640px) {
+    .hero { padding: 100px 20px 40px; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .nav-links a:not(.nav-cta) { display: none; }
+    .features, .how, .download { padding-left: 20px; padding-right: 20px; }
+    .privacy { margin: 0 20px; padding: 32px 24px; }
+    footer { padding: 24px 20px; }
+    .download-meta { flex-direction: column; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="mainNav">
+  <a href="#" class="nav-brand">The Filing <em>Desk</em></a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#how">How It Works</a>
+    <a href="#download">Download</a>
+    <a href="https://github.com/LikeNmuFF/file-desk-organizer" target="_blank" rel="noopener" class="nav-cta">
+      <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-text">
+    <div class="hero-badge">
+      <span></span>
+      Open Source &middot; Local First
+    </div>
+    <h1>
+      <span class="line">Your files,</span>
+      <span class="line"><em class="accent">finally</em></span>
+      <span class="line">organized.</span>
+    </h1>
+    <p class="hero-desc">
+      Point The Filing Desk at any messy folder. It scans, categorizes, and moves everything into place — privately, on your machine. No uploads. No cloud. Just order.
+    </p>
+    <div class="hero-actions">
+      <a href="#download" class="btn-primary">
+        Download Free
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      </a>
+      <a href="https://github.com/LikeNmuFF/file-desk-organizer" target="_blank" rel="noopener" class="btn-secondary">
+        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        View Source
+      </a>
+    </div>
+  </div>
+
+  <div class="hero-visual">
+    <div class="desk-frame">
+      <div class="desk-titlebar">
+        <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <span>The Filing Desk</span>
+      </div>
+      <div class="desk-content">
+        <div class="desk-row">
+          <span class="icon">📄</span>
+          <span class="name">Q3_financial_report.pdf</span>
+          <span class="tag finance">Finance</span>
+        </div>
+        <div class="desk-row">
+          <span class="icon">📊</span>
+          <span class="name">budget_2025.xlsx</span>
+          <span class="tag finance">Finance</span>
+        </div>
+        <div class="desk-row">
+          <span class="icon">📝</span>
+          <span class="name">contract_draft_v2.docx</span>
+          <span class="tag legal">Legal</span>
+        </div>
+        <div class="desk-row">
+          <span class="icon">🖼️</span>
+          <span class="name">team_photo_retreat.jpg</span>
+          <span class="tag">Images</span>
+        </div>
+        <div class="desk-row">
+          <span class="icon">📋</span>
+          <span class="name">resume_jane_doe.pdf</span>
+          <span class="tag hr">HR</span>
+        </div>
+        <div class="desk-row">
+          <span class="icon">📁</span>
+          <span class="name">presentation_deck.pptx</span>
+          <span class="tag">Presentations</span>
+        </div>
+        <div class="desk-row">
+          <span class="icon">🎵</span>
+          <span class="name">podcast_ep47.mp3</span>
+          <span class="tag">Audio</span>
+        </div>
+        <div class="desk-row">
+          <span class="icon">📦</span>
+          <span class="name">project_backup.zip</span>
+          <span class="tag">Archives</span>
+        </div>
+      </div>
+    </div>
+    <div class="desk-sticky tl">
+      847 files<br>
+      <strong>0 uploads</strong><br>
+      100% local
+    </div>
+    <div class="desk-sticky br">
+      AI-powered<br>
+      categorization ✨
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="section-label">What it does</div>
+  <h2 class="features-title reveal">Everything your file manager <em>wishes</em> it could do.</h2>
+
+  <div class="feature-grid">
+    <div class="feature-card reveal reveal-delay-1">
+      <div class="icon-badge">📂</div>
+      <div class="num">01</div>
+      <h3>Smart Scanning</h3>
+      <p>Walks any folder tree instantly. Detects file types, sizes, and modification dates — even finds possible duplicates hiding in plain sight.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-2">
+      <div class="icon-badge">🏷️</div>
+      <div class="num">02</div>
+      <h3>Auto-Categorization</h3>
+      <p>Files sort themselves into PDFs, Spreadsheets, Images, Code, and more. Smart tags pick up on finance, legal, HR, and report keywords automatically.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-3">
+      <div class="icon-badge">🤖</div>
+      <div class="num">03</div>
+      <h3>AI Companion</h3>
+      <p>Ask questions about your files in plain English. Powered by Groq — blazing fast, runs through your API key, data stays on your machine.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-1">
+      <div class="icon-badge">⚡</div>
+      <div class="num">04</div>
+      <h3>One-Click Organize</h3>
+      <p>Hit the button and every file moves into its category folder. Subfolders for tags like Finance or Legal. Done in seconds.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-2">
+      <div class="icon-badge">🔒</div>
+      <div class="num">05</div>
+      <h3>100% Local</h3>
+      <p>Zero network calls for core features. No telemetry, no analytics, no cloud dependency. Your files never leave your computer.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-3">
+      <div class="icon-badge">📡</div>
+      <div class="num">06</div>
+      <h3>WiFi Sharing</h3>
+      <p>Scan files from your phone or another device on the same network. Password-protected. Great for quick remote access without the cloud.</p>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how" id="how">
+  <div class="section-label">How it works</div>
+  <h2 class="features-title reveal">Three steps. That's it.</h2>
+
+  <div class="how-steps">
+    <div class="how-step reveal reveal-delay-1">
+      <span class="step-icon">🗂️</span>
+      <h3>Pick a folder</h3>
+      <p>Click "Choose Folder" and point it at whatever mess needs sorting — Downloads, Desktop, that one folder you've been avoiding.</p>
+    </div>
+    <div class="how-step reveal reveal-delay-2">
+      <span class="step-icon">👀</span>
+      <h3>Review the plan</h3>
+      <p>See every file categorized and tagged. Search by name, extension, or date. Toggle category tabs. Spot duplicates highlighted in rust.</p>
+    </div>
+    <div class="how-step reveal reveal-delay-3">
+      <span class="step-icon">✅</span>
+      <h3>Organize</h3>
+      <p>Hit "Organize Files" and watch it work. Files move into clean category folders — PDFs/, Spreadsheets/Finance/, Images/ — instantly.</p>
+    </div>
+  </div>
+</section>
+
+<!-- PRIVACY -->
+<div class="privacy reveal">
+  <div class="privacy-content">
+    <h2>Your files. <em>Your machine.</em></h2>
+    <p>The Filing Desk is built with Tauri — a fraction of Electron's size, with a Rust backend that's fast and secure. Core features need zero internet. The AI companion uses your own API key. Nothing phones home.</p>
+  </div>
+  <div class="privacy-visual">
+    <div class="shield">🔒</div>
+    <span class="privacy-stat">Zero telemetry</span>
+    <span class="privacy-stat">Zero cloud dependency</span>
+  </div>
+</div>
+
+<!-- DOWNLOAD / GITHUB -->
+<section class="download" id="download">
+  <div class="section-label" style="justify-content:center;">Get started</div>
+  <h2 class="download-title reveal">Ready to tame <em>the chaos?</em></h2>
+  <p class="download-sub reveal">Free and open source. Built with Tauri + Rust. Available for Windows, Linux, and macOS.</p>
+
+  <div class="download-actions reveal">
+    <a href="https://github.com/LikeNmuFF/file-desk-organizer/releases" target="_blank" rel="noopener" class="btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      Download Latest
+    </a>
+    <a href="https://github.com/LikeNmuFF/file-desk-organizer" target="_blank" rel="noopener" class="github-btn">
+      <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      Star on GitHub
+    </a>
+  </div>
+
+  <div class="download-meta reveal">
+    <span><span class="dot"></span> v1.0.0</span>
+    <span><span class="dot"></span> ~10 MB</span>
+    <span><span class="dot"></span> Windows, Linux, macOS</span>
+    <span><span class="dot"></span> MIT License</span>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-brand">The Filing <em>Desk</em></div>
+  <div class="footer-links">
+    <a href="https://github.com/LikeNmuFF/file-desk-organizer" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://github.com/LikeNmuFF/file-desk-organizer/issues" target="_blank" rel="noopener">Issues</a>
+    <a href="#features">Features</a>
+    <a href="#download">Download</a>
+  </div>
+  <span class="footer-copy">&copy; 2025 The Filing Desk</span>
+</footer>
+
+<script>
+// Nav scroll effect
+const nav = document.getElementById('mainNav');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 40);
+}, { passive: true });
+
+// Intersection Observer for reveal animations
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// Smooth scroll for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+</script>
+
+</body>
+</html>
