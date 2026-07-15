@@ -1,0 +1,6 @@
+src-tauri/
+node_modules/
+dist/
+.agents/
+docs/
+*.log
