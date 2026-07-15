@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The Filing Desk — Smart File Organizer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F2EAD8;
+    --paper-deep:#E8DCC0;
+    --manila:#E4BE7F;
+    --manila-dark:#C99A5A;
+    --ink:#20291F;
+    --ink-soft:#4B5245;
+    --rust:#BD4B28;
+    --forest:#33533D;
+    --line:#c9b98d;
+    --card:#FBF6E9;
+    --shadow: 3px 4px 0 rgba(32,41,31,0.18);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.015) 0px, rgba(0,0,0,0.015) 1px, transparent 1px, transparent 3px),
+      var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+  }
+  .noise::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    opacity:0.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .wrap{position:relative; z-index:1; max-width:1180px; margin:0 auto; padding:28px 22px 60px;}
+
+  header.top{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:20px;
+    border-bottom:3px solid var(--ink); padding-bottom:16px; margin-bottom:24px;
+  }
+  .brand-tab{
+    display:inline-block; background:var(--manila); border:2px solid var(--ink);
+    border-bottom:none; padding:6px 18px 4px; font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:.14em; text-transform:uppercase; transform:rotate(-1.2deg);
+    clip-path: polygon(0 0, 100% 0, 96% 100%, 4% 100%);
+  }
+  h1{
+    font-family:'Fraunces', serif; font-weight:700; font-size:44px; line-height:1;
+    margin:8px 0 0; letter-spacing:-0.01em;
+  }
+  h1 em{ font-style:italic; font-weight:500; color:var(--rust); }
+  .tagline{ font-size:13px; color:var(--ink-soft); max-width:320px; text-align:right; }
+
+  .stage{
+    display:grid; grid-template-columns: 250px 1fr; gap:22px;
+  }
+  @media (max-width:820px){ .stage{ grid-template-columns:1fr; } }
+
+  /* --- Drop / Select zone --- */
+  .intake{
+    background:var(--card); border:2px dashed var(--manila-dark); border-radius:2px;
+    padding:26px 22px; text-align:center; margin-bottom:22px;
+    box-shadow: var(--shadow);
+  }
+  .intake h2{ font-family:'Fraunces', serif; font-size:22px; margin:0 0 6px; }
+  .intake p{ margin:0 0 16px; color:var(--ink-soft); font-size:13.5px; line-height:1.5; }
+  button{
+    font-family:'IBM Plex Mono', monospace; font-size:13px; letter-spacing:.03em;
+    cursor:pointer; border:2px solid var(--ink); background:var(--ink); color:var(--paper);
+    padding:11px 20px; border-radius:2px; transition:transform .12s ease, box-shadow .12s ease;
+    box-shadow: 3px 3px 0 var(--rust);
+  }
+  button:hover{ transform:translate(-2px,-2px); box-shadow:5px 5px 0 var(--rust); }
+  button:active{ transform:translate(0,0); box-shadow:1px 1px 0 var(--rust); }
+  button.ghost{
+    background:transparent; color:var(--ink); box-shadow:3px 3px 0 var(--manila-dark);
+  }
+  button.ghost:hover{ box-shadow:5px 5px 0 var(--manila-dark); }
+  button:disabled{ opacity:.4; cursor:not-allowed; box-shadow:none; transform:none; }
+  #folderInput{ display:none; }
+
+  /* --- Sidebar folder tabs --- */
+  .cabinet{ display:flex; flex-direction:column; gap:0; }
+  .tab{
+    background:var(--manila); border:2px solid var(--ink); border-bottom:none;
+    padding:10px 14px; margin-top:-2px; cursor:pointer; position:relative;
+    font-family:'IBM Plex Mono', monospace; font-size:12.5px;
+    display:flex; justify-content:space-between; align-items:center;
+    clip-path: polygon(0 0, 88% 0, 100% 100%, 0% 100%);
+  }
+  .tab:first-child{ margin-top:0; }
+  .tab:last-child{ border-bottom:2px solid var(--ink); }
+  .tab.active{ background:var(--card); }
+  .tab .count{
+    background:var(--ink); color:var(--paper); border-radius:20px; padding:1px 8px; font-size:11px;
+  }
+  .tab.active .count{ background:var(--rust); }
+  .tab-label{ display:flex; align-items:center; gap:8px; }
+
+  /* --- Main area --- */
+  .toolbar{
+    display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center;
+  }
+  .search-card{
+    flex:1; min-width:220px; background:var(--card); border:2px solid var(--ink); border-radius:2px;
+    display:flex; align-items:center; padding:0 12px; box-shadow: var(--shadow);
+  }
+  .search-card input{
+    border:none; background:transparent; outline:none; padding:10px 8px; flex:1;
+    font-family:'IBM Plex Mono', monospace; font-size:13px; color:var(--ink);
+  }
+  .search-card .icon{ font-size:14px; color:var(--ink-soft); }
+
+  .summary-strip{
+    display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; font-family:'IBM Plex Mono', monospace; font-size:11.5px;
+  }
+  .chip{
+    background:var(--paper-deep); border:1.5px solid var(--line); padding:4px 10px; border-radius:20px;
+    color:var(--ink-soft);
+  }
+  .chip.warn{ background:#F4DCC7; border-color:var(--rust); color:var(--rust); }
+
+  .filelist{ display:flex; flex-direction:column; gap:8px; }
+  .frow{
+    background:var(--card); border:1.5px solid var(--line); border-radius:2px;
+    padding:10px 14px; display:grid; grid-template-columns: 1fr auto auto auto; gap:14px; align-items:center;
+    font-size:13px; animation: rise .35s ease both;
+  }
+  .frow.dupe{ border-left:4px solid var(--rust); }
+  .fname{ font-weight:500; word-break:break-word; }
+  .fpath{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); display:block; margin-top:2px; }
+  .ftag{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:.05em;
+    background:var(--manila); border:1px solid var(--manila-dark); padding:3px 8px; border-radius:20px; white-space:nowrap;
+  }
+  .fsize{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); white-space:nowrap; }
+  .fdate{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); white-space:nowrap; }
+
+  @keyframes rise{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+  .empty-state{
+    text-align:center; padding:60px 20px; color:var(--ink-soft); font-family:'IBM Plex Mono', monospace; font-size:13px;
+  }
+
+  .export-bar{
+    margin-top:22px; background:var(--forest); color:var(--paper); border-radius:2px; padding:18px 20px;
+    display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;
+    box-shadow: var(--shadow);
+  }
+  .export-bar h3{ font-family:'Fraunces', serif; font-weight:600; margin:0 0 4px; font-size:17px; }
+  .export-bar p{ margin:0; font-size:12px; opacity:.85; max-width:440px; }
+  .export-bar button{ background:var(--paper); color:var(--ink); box-shadow:3px 3px 0 var(--manila-dark); }
+
+  .note{
+    font-size:11.5px; color:var(--ink-soft); margin-top:10px; line-height:1.5; font-family:'IBM Plex Mono', monospace;
+  }
+  #status{ font-size:12px; color:var(--rust); font-family:'IBM Plex Mono', monospace; margin-top:8px; min-height:16px; }
+</style>
+</head>
+<body class="noise">
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <span class="brand-tab">est. today · v1</span>
+      <h1>The Filing<br><em>Desk</em></h1>
+    </div>
+    <p class="tagline">Point it at a messy folder. It sorts, tags, and hands your boss a script that actually cleans it up — nothing ever uploads anywhere.</p>
+  </header>
+
+  <div class="intake" id="intake">
+    <h2>Select the folder to organize</h2>
+    <p>Works best in Chrome or Edge on Windows. Everything runs on this computer — files are never sent anywhere.</p>
+    <button id="pickBtn">📂 Choose Folder</button>
+    <input type="file" id="folderInput" webkitdirectory directory multiple>
+    <div id="status"></div>
+  </div>
+
+  <div id="results" style="display:none;">
+    <div class="summary-strip" id="summaryStrip"></div>
+
+    <div class="stage">
+      <div class="cabinet" id="cabinet"></div>
+
+      <div>
+        <div class="toolbar">
+          <div class="search-card">
+            <span class="icon">🔎</span>
+            <input type="text" id="searchInput" placeholder='Try "budget march" or "resume" or ".pdf"'>
+          </div>
+          <button class="ghost" id="clearSearch">Clear</button>
+        </div>
+        <div class="filelist" id="filelist"></div>
+      </div>
+    </div>
+
+    <div class="export-bar">
+      <div>
+        <h3>Ready to actually move the files?</h3>
+        <p>Generates a Windows script that creates the folders above and moves every file into place. Review it, back up first, then double-click to run.</p>
+      </div>
+      <button id="genScript">⬇ Download Organize Script</button>
+    </div>
+    <p class="note">Tip: save the downloaded .ps1 file directly inside the folder you selected, then right-click it → "Run with PowerShell". If Windows blocks it, he can run <span style="background:var(--paper-deep);padding:1px 5px;">powershell -ExecutionPolicy Bypass -File .\organize.ps1</span> from a terminal in that folder.</p>
+  </div>
+
+</div>
+
+<script>
+const CATEGORY_RULES = [
+  { name:'PDFs', match:['pdf'] },
+  { name:'Documents', match:['doc','docx','txt','rtf','odt'] },
+  { name:'Spreadsheets', match:['xls','xlsx','csv','ods'] },
+  { name:'Presentations', match:['ppt','pptx','odp'] },
+  { name:'Images', match:['jpg','jpeg','png','gif','bmp','svg','webp','heic','tif','tiff'] },
+  { name:'Videos', match:['mp4','mov','avi','mkv','wmv','m4v'] },
+  { name:'Audio', match:['mp3','wav','aac','flac','m4a'] },
+  { name:'Archives', match:['zip','rar','7z','tar','gz'] },
+  { name:'Code & Data', match:['js','ts','py','html','css','json','java','cpp','c','php','xml','sql'] },
+  { name:'Installers', match:['exe','msi','apk','dmg'] },
+];
+
+const KEYWORD_TAGS = [
+  { tag:'Finance', words:['invoice','receipt','budget','payroll','expense','financial','accounting'] },
+  { tag:'HR', words:['resume','cv','contract','employment','leave','payslip'] },
+  { tag:'Legal', words:['agreement','contract','nda','legal','memo'] },
+  { tag:'Reports', words:['report','minutes','summary','narrative'] },
+  { tag:'Presentation', words:['deck','presentation','pitch'] },
+];
+
+const MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+
+let allFiles = [];
+let activeCategory = 'All';
+
+function categorize(ext){
+  ext = ext.toLowerCase();
+  for(const rule of CATEGORY_RULES){ if(rule.match.includes(ext)) return rule.name; }
+  return 'Other';
+}
+function smartTag(name){
+  const lower = name.toLowerCase();
+  for(const kw of KEYWORD_TAGS){ if(kw.words.some(w=>lower.includes(w))) return kw.tag; }
+  return null;
+}
+function fmtSize(bytes){
+  if(bytes < 1024) return bytes + ' B';
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  if(bytes < 1024*1024*1024) return (bytes/1024/1024).toFixed(1) + ' MB';
+  return (bytes/1024/1024/1024).toFixed(2) + ' GB';
+}
+function fmtDate(ts){
+  const d = new Date(ts);
+  return d.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+}
+
+document.getElementById('pickBtn').addEventListener('click', ()=> document.getElementById('folderInput').click());
+
+document.getElementById('folderInput').addEventListener('change', (e)=>{
+  const files = Array.from(e.target.files);
+  if(!files.length) return;
+  document.getElementById('status').textContent = 'Scanning ' + files.length + ' files...';
+
+  setTimeout(()=>{
+    const rootName = files[0].webkitRelativePath.split('/')[0];
+    const seen = {};
+    allFiles = files.map(f=>{
+      const rel = f.webkitRelativePath;
+      const ext = (f.name.split('.').pop() || '').toLowerCase();
+      const category = categorize(ext);
+      const tag = smartTag(f.name);
+      const key = f.name.toLowerCase() + '|' + f.size;
+      seen[key] = (seen[key]||0) + 1;
+      return {
+        name: f.name, relPath: rel, size: f.size, lastModified: f.lastModified,
+        ext, category, tag, dupeKey:key
+      };
+    });
+    allFiles.forEach(f=> f.isDupe = seen[f.dupeKey] > 1 );
+
+    document.getElementById('status').textContent = '';
+    document.getElementById('intake').querySelector('h2').textContent = 'Loaded: ' + rootName;
+    renderAll();
+    document.getElementById('results').style.display = 'block';
+  }, 30);
+});
+
+function renderAll(){
+  renderSummary();
+  renderCabinet();
+  renderFileList();
+}
+
+function renderSummary(){
+  const totalSize = allFiles.reduce((a,f)=>a+f.size,0);
+  const dupes = allFiles.filter(f=>f.isDupe).length;
+  const strip = document.getElementById('summaryStrip');
+  strip.innerHTML = `
+    <span class="chip">${allFiles.length} files</span>
+    <span class="chip">${fmtSize(totalSize)} total</span>
+    <span class="chip">${new Set(allFiles.map(f=>f.category)).size} categories</span>
+    ${dupes ? `<span class="chip warn">⚠ ${dupes} possible duplicates</span>` : ''}
+  `;
+}
+
+function renderCabinet(){
+  const counts = {};
+  allFiles.forEach(f=> counts[f.category] = (counts[f.category]||0)+1 );
+  const cats = Object.keys(counts).sort((a,b)=> counts[b]-counts[a]);
+  const cabinet = document.getElementById('cabinet');
+  cabinet.innerHTML = '';
+
+  const allTab = makeTab('All', allFiles.length, activeCategory==='All');
+  cabinet.appendChild(allTab);
+  cats.forEach(cat=>{
+    cabinet.appendChild(makeTab(cat, counts[cat], activeCategory===cat));
+  });
+}
+function makeTab(label, count, active){
+  const div = document.createElement('div');
+  div.className = 'tab' + (active ? ' active' : '');
+  div.innerHTML = `<span class="tab-label">📁 ${label}</span><span class="count">${count}</span>`;
+  div.addEventListener('click', ()=>{ activeCategory = label; renderCabinet(); renderFileList(); });
+  return div;
+}
+
+function matchesSearch(f, q){
+  if(!q) return true;
+  q = q.toLowerCase().trim();
+  const terms = q.split(/\s+/);
+  return terms.every(term=>{
+    if(term.startsWith('.')) return f.ext === term.slice(1);
+    if(MONTHS.includes(term)){
+      const m = new Date(f.lastModified).getMonth();
+      return MONTHS[m] === term;
+    }
+    return f.name.toLowerCase().includes(term)
+      || f.category.toLowerCase().includes(term)
+      || (f.tag && f.tag.toLowerCase().includes(term));
+  });
+}
+
+function renderFileList(){
+  const q = document.getElementById('searchInput').value;
+  let list = allFiles.filter(f=> (activeCategory==='All' || f.category===activeCategory) && matchesSearch(f,q) );
+  list.sort((a,b)=> b.lastModified - a.lastModified);
+  const el = document.getElementById('filelist');
+
+  if(!list.length){
+    el.innerHTML = `<div class="empty-state">No files match. Try a different search or folder tab.</div>`;
+    return;
+  }
+  el.innerHTML = list.slice(0,300).map(f=>`
+    <div class="frow ${f.isDupe?'dupe':''}">
+      <div>
+        <div class="fname">${escapeHtml(f.name)}</div>
+        <span class="fpath">${escapeHtml(f.relPath)}${f.isDupe? ' · possible duplicate':''}</span>
+      </div>
+      <span class="ftag">${f.tag || f.category}</span>
+      <span class="fdate">${fmtDate(f.lastModified)}</span>
+      <span class="fsize">${fmtSize(f.size)}</span>
+    </div>
+  `).join('');
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+document.getElementById('searchInput').addEventListener('input', renderFileList);
+document.getElementById('clearSearch').addEventListener('click', ()=>{
+  document.getElementById('searchInput').value = '';
+  renderFileList();
+});
+
+document.getElementById('genScript').addEventListener('click', ()=>{
+  if(!allFiles.length) return;
+
+  const lines = [
+    '# ============================================================',
+    '# Organize script generated by The Filing Desk',
+    '# Run this from INSIDE the folder you scanned (same location).',
+    '# ALWAYS back up the folder before running.',
+    '# ============================================================',
+    '$base = $PSScriptRoot',
+    'Write-Host "Organizing files in $base ..." -ForegroundColor Cyan',
+    ''
+  ];
+
+  const folders = new Set();
+  allFiles.forEach(f=>{
+    const sub = f.tag || f.category;
+    folders.add(f.category);
+    if(f.tag) folders.add(f.category + '\\' + f.tag);
+  });
+  folders.forEach(folder=>{
+    lines.push(`New-Item -ItemType Directory -Force -Path "$base\\${folder}" | Out-Null`);
+  });
+  lines.push('');
+
+  allFiles.forEach(f=>{
+    const destFolder = f.category + (f.tag ? ('\\' + f.tag) : '');
+    const srcRelNoRoot = f.relPath.split('/').slice(1).join('\\');
+    const src = srcRelNoRoot ? `$base\\${srcRelNoRoot}` : `$base\\${f.name}`;
+    const safeName = f.name.replace(/"/g,'`"');
+    const dest = `$base\\${destFolder}\\${safeName}`;
+    lines.push(`if (Test-Path "${src}") { Move-Item -Path "${src}" -Destination "${dest}" -Force -ErrorAction SilentlyContinue }`);
+  });
+
+  lines.push('', 'Write-Host "Done. Files are sorted into category folders." -ForegroundColor Green');
+
+  const blob = new Blob([lines.join('\n')], { type:'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'organize.ps1';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>
