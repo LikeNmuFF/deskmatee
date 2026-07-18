@@ -731,9 +731,22 @@ async fn chat_claude(client: &reqwest::Client, api_key: &str, model: &str, messa
         .ok_or_else(|| "No response from model".into())
 }
 
+fn resolve_gemini_model(model: &str) -> String {
+    let trimmed = model.trim();
+    if trimmed.is_empty() {
+        return "gemini-flash-latest".to_string();
+    }
+
+    match trimmed {
+        "gemini-2.0-flash" | "gemini-2.5-flash" | "gemini-1.5-pro" | "gemini-3.5-flash" | "gemini-flash-latest" => "gemini-flash-latest".to_string(),
+        _ => trimmed.to_string(),
+    }
+}
+
 async fn chat_gemini(client: &reqwest::Client, api_key: &str, model: &str, messages: &[ChatMessage]) -> Result<String, String> {
     let mut contents: Vec<serde_json::Value> = Vec::new();
     let mut system_instruction = serde_json::json!({});
+    let resolved_model = resolve_gemini_model(model);
 
     for msg in messages {
         if msg.role == "system" {
@@ -772,7 +785,7 @@ async fn chat_gemini(client: &reqwest::Client, api_key: &str, model: &str, messa
 
     let url = format!(
         "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
-        model
+        resolved_model
     );
 
     let resp = client

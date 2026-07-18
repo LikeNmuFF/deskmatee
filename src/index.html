@@ -1070,9 +1070,9 @@ const PROVIDER_MODELS = {
     { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
   ],
   gemini: [
-    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Recommended)' },
+    { value: 'gemini-flash-latest', label: 'Gemini Flash Latest (Recommended)' },
+    { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
     { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
   ],
 };
 
@@ -1081,7 +1081,7 @@ const PROVIDER_NAMES = { groq: 'Groq', openai: 'OpenAI', claude: 'Claude', gemin
 let chatHistory = [];
 let currentProvider = localStorage.getItem('ai_provider') || 'groq';
 let apiKey = localStorage.getItem(`${currentProvider}_api_key`) || '';
-let selectedModel = localStorage.getItem(`${currentProvider}_model`) || Object.keys(PROVIDER_MODELS).length ? PROVIDER_MODELS[currentProvider][0].value : '';
+let selectedModel = localStorage.getItem(`${currentProvider}_model`) || (PROVIDER_MODELS[currentProvider]?.[0]?.value || '');
 let sending = false;
 
 const aiSidebar = document.getElementById('aiSidebar');
@@ -1108,7 +1108,8 @@ function populateModels(provider) {
     modelSelect.appendChild(opt);
   });
   const saved = localStorage.getItem(`${provider}_model`);
-  if (saved) modelSelect.value = saved;
+  const fallback = PROVIDER_MODELS[provider]?.[0]?.value || '';
+  modelSelect.value = saved || fallback;
 }
 
 populateModels(currentProvider);
@@ -1118,6 +1119,7 @@ providerSelect.addEventListener('change', () => {
   apiKeyInput.placeholder = p === 'groq' ? 'gsk_...' : p === 'openai' ? 'sk-...' : p === 'claude' ? 'sk-ant-...' : 'AIza...';
   apiKeyInput.value = localStorage.getItem(`${p}_api_key`) || '';
   populateModels(p);
+  modelSelect.value = localStorage.getItem(`${p}_model`) || (PROVIDER_MODELS[p]?.[0]?.value || '');
 });
 
 aiToggle.addEventListener('click', ()=> aiSidebar.classList.toggle('open'));
@@ -1128,7 +1130,7 @@ aiSettingsBtn.addEventListener('click', ()=>{
   apiKeyInput.value = apiKey;
   apiKeyInput.placeholder = currentProvider === 'groq' ? 'gsk_...' : currentProvider === 'openai' ? 'sk-...' : currentProvider === 'claude' ? 'sk-ant-...' : 'AIza...';
   populateModels(currentProvider);
-  modelSelect.value = selectedModel;
+  modelSelect.value = selectedModel || (PROVIDER_MODELS[currentProvider]?.[0]?.value || '');
   settingsOverlay.classList.add('open');
 });
 settingsCancel.addEventListener('click', ()=> settingsOverlay.classList.remove('open'));
