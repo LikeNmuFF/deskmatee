@@ -1,6 +1,6 @@
 [package]
 name = "deskmatee"
-version = "1.0.0"
+version = "1.0.1"
 description = "Smart file organizer desktop app"
 edition = "2021"
 
